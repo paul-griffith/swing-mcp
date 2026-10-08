@@ -1,0 +1,33 @@
+# Gradle
+.gradle/
+build/
+**/build/
+!gradle/wrapper/gradle-wrapper.jar
+!src/**/build/
+
+# Gradle local config
+gradle-app.setting
+.gradletasknamecache
+
+# IntelliJ IDEA
+.idea/
+*.iml
+*.ipr
+*.iws
+out/
+
+# Eclipse
+.classpath
+.project
+.settings/
+bin/
+
+# VS Code
+.vscode/
+
+# macOS
+.DS_Store
+
+# Logs / temp
+*.log
+*.hprof
