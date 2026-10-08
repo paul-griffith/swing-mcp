@@ -78,6 +78,14 @@ class ComponentAddressWindowStabilityTest {
       assertEquals("reopenedFrame", ComponentAddress.idOf(reopened));
       assertSame(button, ComponentAddress.resolve("reopenedButton"));
       assertTrue(List.of(Window.getWindows()).contains(closed), "the disposed copy still lingers");
+
+      // list_windows reports only the live copy, under its name id.
+      List<WindowSnapshot> listed =
+          Introspection.listWindows().stream()
+              .filter(w -> "reopenedFrame".equals(w.title()))
+              .toList();
+      assertEquals(1, listed.size(), "the disposed copy must not be listed: " + listed);
+      assertEquals("reopenedFrame", listed.get(0).id());
     } finally {
       SwingUtilities.invokeAndWait(reopened::dispose);
     }

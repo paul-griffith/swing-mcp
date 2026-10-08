@@ -208,8 +208,8 @@ public final class Interactions {
    */
   private static Map<String, WindowRef> showingWindowsOnEdt() {
     Map<String, WindowRef> out = new LinkedHashMap<>();
-    Window[] windows = Window.getWindows();
-    Map<String, Integer> nameFrequency = ComponentAddress.nameFrequency(List.of(windows));
+    List<Window> windows = ComponentAddress.nameScopeWindows();
+    Map<String, Integer> nameFrequency = ComponentAddress.nameFrequency(windows);
     for (Window window : windows) {
       if (!window.isShowing() || window.getType() == Window.Type.POPUP) {
         continue;

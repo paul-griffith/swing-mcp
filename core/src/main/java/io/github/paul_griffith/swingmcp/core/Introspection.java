@@ -80,7 +80,9 @@ public final class Introspection {
   }
 
   /**
-   * Snapshots every window in {@link Window#getWindows()} in that array's order.
+   * Snapshots every live window in {@link Window#getWindows()}, in that array's order. Disposed
+   * windows still lingering there until GC are skipped (see {@link
+   * ComponentAddress#nameScopeWindows()}).
    *
    * @param timeout maximum time to wait for the EDT
    * @throws EdtOps.EdtTimeoutException if the EDT does not answer within {@code timeout}
@@ -88,9 +90,9 @@ public final class Introspection {
   public static List<WindowSnapshot> listWindows(Duration timeout) {
     return onEdt(
         () -> {
-          Window[] windows = Window.getWindows();
-          Map<String, Integer> nameFrequency = ComponentAddress.nameFrequency(List.of(windows));
-          List<WindowSnapshot> out = new ArrayList<>(windows.length);
+          List<Window> windows = ComponentAddress.nameScopeWindows();
+          Map<String, Integer> nameFrequency = ComponentAddress.nameFrequency(windows);
+          List<WindowSnapshot> out = new ArrayList<>(windows.size());
           for (Window window : windows) {
             out.add(windowSnapshot(window, nameFrequency));
           }
@@ -243,11 +245,10 @@ public final class Introspection {
     int cap = limit > 0 ? limit : DEFAULT_FIND_LIMIT;
     return onEdt(
         () -> {
-          Window[] windows = Window.getWindows();
+          List<Window> windows = ComponentAddress.nameScopeWindows();
           boolean allWindows = roots == null || roots.isEmpty();
-          List<? extends Component> effectiveRoots = allWindows ? List.of(windows) : roots;
-          List<? extends Component> nameScope =
-              windows.length > 0 ? List.of(windows) : effectiveRoots;
+          List<? extends Component> effectiveRoots = allWindows ? windows : roots;
+          List<? extends Component> nameScope = !windows.isEmpty() ? windows : effectiveRoots;
           Map<String, Integer> nameFrequency = ComponentAddress.nameFrequency(nameScope);
           List<ComponentTreeSnapshot> matches = new ArrayList<>();
           Scan scan = new Scan(criteria);

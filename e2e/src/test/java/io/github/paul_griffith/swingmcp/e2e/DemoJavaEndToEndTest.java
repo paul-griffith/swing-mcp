@@ -390,21 +390,12 @@ class DemoJavaEndToEndTest {
             Duration.ofSeconds(5));
     assertTrue(gone, "detailsDialog should be gone after clicking its close button");
 
-    // 5. The disposed dialog lingers as a non-showing window: the default list suppresses it and
-    // reports it in hiddenCount; include_hidden surfaces it again.
-    JsonNode defaults = mcp.call("list_windows", Map.of());
-    assertNull(
-        arrayItemWhere(defaults.get("windows"), "id", "detailsDialog"),
-        "a hidden window should be suppressed by default: " + defaults);
-    assertTrue(
-        defaults.has("hiddenCount") && defaults.get("hiddenCount").asInt() > 0,
-        "expected a hiddenCount field: " + defaults);
-
+    // 5. The dialog was disposed, not merely hidden: although AWT keeps it in Window.getWindows()
+    // until GC, it is gone from list_windows even with include_hidden.
     JsonNode full = mcp.call("list_windows", Map.of("include_hidden", true));
-    JsonNode lingering = arrayItemWhere(full.get("windows"), "id", "detailsDialog");
-    assertNotNull(lingering, "include_hidden should surface the disposed dialog: " + full);
-    assertFalse(lingering.get("showing").asBoolean());
-    assertFalse(full.has("hiddenCount"), "include_hidden suppresses nothing: " + full);
+    assertNull(
+        arrayItemWhere(full.get("windows"), "id", "detailsDialog"),
+        "a disposed dialog should not be listed: " + full);
   }
 
   @Test

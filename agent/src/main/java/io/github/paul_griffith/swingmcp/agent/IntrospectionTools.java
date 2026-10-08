@@ -40,9 +40,9 @@ final class IntrospectionTools {
     properties.put(
         "include_hidden",
         s.booleanProp(
-            "Also include windows that are not showing (hidden, not yet shown, or disposed frames "
-                + "that linger in the window list). Default false: only showing windows are "
-                + "returned."));
+            "Also include windows that are not showing (e.g. hidden with setVisible(false));"
+                + " disposed windows are never listed. Default false: only showing windows are"
+                + " returned."));
     properties.put("title", s.stringProp("Case-insensitive substring filter on the window title."));
     McpSchema.Tool tool =
         McpSchema.Tool.builder("list_windows", s.objectSchema(properties))
