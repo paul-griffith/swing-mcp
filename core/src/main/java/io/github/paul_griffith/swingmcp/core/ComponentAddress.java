@@ -274,7 +274,7 @@ public final class ComponentAddress {
         () -> {
           PathBase base = pathBaseFor(component);
           List<? extends Component> nameScope =
-              base.anchor().startsWith("w") ? List.of(Window.getWindows()) : List.of(base.base());
+              base.anchor().startsWith("w") ? nameScopeWindows() : List.of(base.base());
           return idFor(component, base, nameFrequency(nameScope));
         },
         timeout);
@@ -358,7 +358,23 @@ public final class ComponentAddress {
       }
       return walk(window, id, segmentsAfterAnchor(m));
     }
-    return resolveByNameAmong(List.of(Window.getWindows()), id);
+    return resolveByNameAmong(nameScopeWindows(), id);
+  }
+
+  /**
+   * The windows a global name id is unique within and resolved against: {@link Window#getWindows()}
+   * minus disposed (non-displayable) ones. A disposed window lingers in that array until it is
+   * garbage-collected, so without this filter closing and reopening a named window or dialog would
+   * leave two same-named copies and break the name id until the next GC. Call on the EDT.
+   */
+  static List<Window> nameScopeWindows() {
+    List<Window> windows = new ArrayList<>();
+    for (Window window : Window.getWindows()) {
+      if (window.isDisplayable()) {
+        windows.add(window);
+      }
+    }
+    return windows;
   }
 
   private static Component resolveRooted(Component root, String id) {

@@ -164,7 +164,7 @@ public final class Introspection {
           // Uniqueness scope matches the resolver's search scope: all windows for a window-anchored
           // snapshot (global resolve), or just this subtree for a detached one (rooted resolve).
           List<? extends Component> nameScope =
-              base.anchor().startsWith("w") ? List.of(Window.getWindows()) : List.of(root);
+              base.anchor().startsWith("w") ? ComponentAddress.nameScopeWindows() : List.of(root);
           Map<String, Integer> nameFrequency = ComponentAddress.nameFrequency(nameScope);
           return buildNode(root, base, nameFrequency, maxDepth);
         },

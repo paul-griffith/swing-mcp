@@ -1,5 +1,6 @@
 package io.github.paul_griffith.swingmcp.core;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -7,6 +8,8 @@ import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
 import java.awt.Component;
 import java.awt.GraphicsEnvironment;
+import java.awt.Window;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import javax.swing.JButton;
 import javax.swing.JFrame;
@@ -56,6 +59,27 @@ class ComponentAddressWindowStabilityTest {
             alpha.dispose();
             beta.dispose();
           });
+    }
+  }
+
+  @Test
+  void nameIdSurvivesReopeningANamedWindow() throws Exception {
+    assumeFalse(GraphicsEnvironment.isHeadless(), "no display available; skipping headed tests");
+
+    // Close a named window and open a fresh one with the same names. The disposed original lingers
+    // in Window.getWindows() until GC (the strong reference here guarantees it), but it must not
+    // count against the new window's names: they stay unique, so the name ids keep working.
+    JFrame closed = onEdt(() -> namedFrame("reopenedFrame", "reopenedButton"));
+    SwingUtilities.invokeAndWait(closed::dispose);
+    JFrame reopened = onEdt(() -> namedFrame("reopenedFrame", "reopenedButton"));
+    try {
+      Component button = onEdt(() -> findByName(reopened, "reopenedButton"));
+      assertEquals("reopenedButton", ComponentAddress.idOf(button));
+      assertEquals("reopenedFrame", ComponentAddress.idOf(reopened));
+      assertSame(button, ComponentAddress.resolve("reopenedButton"));
+      assertTrue(List.of(Window.getWindows()).contains(closed), "the disposed copy still lingers");
+    } finally {
+      SwingUtilities.invokeAndWait(reopened::dispose);
     }
   }
 
