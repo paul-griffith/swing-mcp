@@ -2,20 +2,20 @@
 # Versions verified against Maven Central / Gradle Plugin Portal on 2026-07-03.
 [versions]
 # Java MCP SDK (io.modelcontextprotocol.sdk). 2.0.0 is the current release.
-mcp = "2.0.0"
+mcp = "2.0.1"
 # Jetty 12.1.x — the EE10 servlet stack (Servlet 6 / jakarta.servlet 6.x).
-jetty = "12.1.10"
+jetty = "12.1.14"
 # JUnit 5.x (Jupiter). 5.14.4 is the latest 5.x line; JUnit 6.x exists but the
 # plan pins the 5.x series, so we track the newest 5.x release.
-junit = "5.14.4"
+junit = "6.1.3"
 # Shadow (fat-jar + relocation) — maintained fork at com.gradleup.shadow.
-shadow = "9.4.3"
+shadow = "9.6.1"
 # Foojay toolchain resolver — auto-provisions JDK toolchains when not installed.
 foojay = "1.0.0"
 # Kotlin JVM — used ONLY by the demo-kotlin module (proves Kotlin-authored Swing UIs need
 # nothing special). The agent/core stay pure Java so no kotlin-stdlib is ever shaded into a
 # host app. 2.2.20 is a current stable 2.x with Gradle 9 support.
-kotlin = "2.2.20"
+kotlin = "2.4.20"
 
 [libraries]
 # --- MCP SDK ---
