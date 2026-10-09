@@ -6,6 +6,8 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.io.File;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 
 /** Unit tests for {@link AgentConfig#parse(String)}: defaults, overrides, and malformed input. */
@@ -79,5 +81,33 @@ class AgentConfigTest {
   void outOfRangePortIsRejected() {
     assertThrows(IllegalArgumentException.class, () -> AgentConfig.parse("port=70000"));
     assertThrows(IllegalArgumentException.class, () -> AgentConfig.parse("port=-1"));
+  }
+
+  // ------------------------------------------------------------------ extensions
+
+  @Test
+  void noExtensionsByDefault() {
+    assertEquals(List.of(), AgentConfig.defaults().extensions());
+    assertEquals(List.of(), AgentConfig.parse("port=1").extensions());
+  }
+
+  @Test
+  void extensionsAreSplitOnThePathSeparator() {
+    String sep = File.pathSeparator;
+    AgentConfig config =
+        AgentConfig.parse("port=0,extensions=/opt/a.jar" + sep + " /opt/exts " + sep + sep);
+    assertEquals(List.of("/opt/a.jar", "/opt/exts"), config.extensions());
+  }
+
+  @Test
+  void repeatedExtensionsKeysAccumulate() {
+    AgentConfig config = AgentConfig.parse("extensions=/a.jar,extensions=/b.jar");
+    assertEquals(List.of("/a.jar", "/b.jar"), config.extensions());
+  }
+
+  @Test
+  void theExtensionsListIsImmutable() {
+    List<String> extensions = AgentConfig.parse("extensions=/a.jar").extensions();
+    assertThrows(UnsupportedOperationException.class, () -> extensions.add("/b.jar"));
   }
 }

@@ -4,10 +4,15 @@ plugins {
 }
 
 // core is deliberately MCP-free: it holds the Swing introspection & driving logic
-// so it can be unit-tested headlessly without any transport dependency.
+// so it can be unit-tested headlessly without any transport dependency. Its only dependency is
+// the JDK-only extension API.
 description = "Swing introspection & driving core (no MCP dependency)"
 
 dependencies {
+    // The extension API: core consults registered ComponentDescribers, and passes the API on to
+    // the agent (and so into the shaded jar, unrelocated) through this `api` dependency.
+    api(project(":api"))
+
     // Test-only: the headed integration tests launch the demo-java frame in-JVM to snapshot it
     // and screenshot it. demo-java does not depend on core, so there is no dependency cycle.
     testImplementation(project(":demo-java"))

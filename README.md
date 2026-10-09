@@ -55,10 +55,11 @@ startup failure is logged to stderr with a `[swing-mcp]` prefix and swallowed. O
 
 **Agent arguments** (`=key=value,key=value`, all optional):
 
-| Arg     | Default     | Meaning |
-|---------|-------------|---------|
-| `port`  | `8765`      | TCP port to bind. `0` picks a free ephemeral port (read the actual port from the startup line). |
-| `token` | *(none)*    | When set, requests must send `Authorization: Bearer <token>`. |
+| Arg          | Default     | Meaning |
+|--------------|-------------|---------|
+| `port`       | `8765`      | TCP port to bind. `0` picks a free ephemeral port (read the actual port from the startup line). |
+| `token`      | *(none)*    | When set, requests must send `Authorization: Bearer <token>`. |
+| `extensions` | *(none)*    | Extension jars to load: jar files and/or directories of jars, separated by `:` (`;` on Windows); see [Extensions](#extensions). |
 
 Example: `-javaagent:swing-mcp-agent.jar=port=9000,token=s3cret`.
 
@@ -201,13 +202,92 @@ What limits who that client can be:
   - when a `token` is configured, a missing/non-Bearer `Authorization` header is `401` and a wrong
     token is `403` (compared in constant time).
 
+## Extensions
+
+The built-in tools only know what standard Swing components expose. An **extension** teaches
+swing-mcp about an application's own components and adds tools of its own, without a fork:
+
+- a **describer** gives a component display text, so a custom-painted gauge, a docking frame whose
+  title lives in a field, or a canvas widget shows up meaningfully in `get_component_tree`, and
+  `find_components`, `wait_for`, and `get_text` can match and read it;
+- a **tool** is an MCP tool listed next to the built-in ones. It takes the same component ids and
+  returns the same `{error, message, hint?}` errors.
+
+An extension is a class implementing `io.github.paul_griffith.swingmcp.api.SwingMcpExtension`,
+registered in `META-INF/services/io.github.paul_griffith.swingmcp.api.SwingMcpExtension`:
+
+```java
+public final class GaugeExtension implements SwingMcpExtension {
+  @Override
+  public String name() {
+    return "gauges";
+  }
+
+  @Override
+  public void register(ExtensionContext context) {
+    // Called on the EDT for every component the tools look at; null means "not mine".
+    context.addDescriber(c -> isGauge(c) ? "Gauge: " + reading(c) : null);
+
+    Map<String, Object> schema =
+        Map.of(
+            "type", "object",
+            "properties", Map.of("component_id", Map.of("type", "string")),
+            "required", List.of("component_id"));
+    context.addTool(
+        new ToolDefinition(
+            "gauges_read",
+            "Read a gauge",
+            "Returns {id, reading} for a gauge component.",
+            schema,
+            (args, ctx) -> {
+              String id = (String) args.get("component_id");
+              Double reading = ctx.withComponent(id, c -> isGauge(c) ? reading(c) : null);
+              if (reading == null) {
+                throw new ToolException("not_a_gauge", id + " is not a gauge", "find one first");
+              }
+              return Map.of("id", id, "reading", reading);
+            }));
+  }
+}
+```
+
+Load it either way:
+
+- **`extensions=`** — `-javaagent:swing-mcp-agent.jar=extensions=/opt/swing-mcp/gauges.jar`. Each
+  entry is a jar, or a directory whose `*.jar` files are loaded together (an extension plus the jars
+  it depends on). Each entry gets its own class loader, so extensions do not see each other.
+- **the classpath** — an extension on the classpath of the JVM the agent runs in is found
+  automatically.
+
+Things to know:
+
+- The API (`io.github.paul_griffith.swingmcp.api`, the `api` module) depends only on the JDK and is
+  never relocated in the shaded jar. Compile against `swing-mcp-agent.jar` (or the `api` module) as
+  a compile-only dependency.
+- Application classes usually live in a different class loader than the extension. Reach them
+  reflectively through the component you are handed, as the sample does with the demo's
+  `StatusIndicator` (`demo-extension/`).
+- Describers run on the EDT, before the built-in rules, for every component: answer quickly and
+  return `null` for anything you do not recognize. Tool handlers run on a request thread; touch
+  Swing only through `ToolContext.withComponent` / `onEdt`, which apply the usual EDT timeout.
+- Prefix tool names with something identifying the extension. A tool whose name is taken (by a
+  built-in or another extension) or malformed, or whose schema is not an object schema, is skipped.
+- A broken extension never stops the agent: a missing path, a provider that cannot be created, a
+  duplicate extension name, or a `register` that throws is logged with the `[swing-mcp]` prefix and
+  skipped; a describer that throws counts as "not mine" (its first failure is logged). The startup
+  log lists what loaded, and the server instructions tell clients which extension tools exist.
+- An extension runs inside the host application with the same power as the agent itself: only
+  load extensions you trust, the same as the agent jar.
+
 ## Development
 
 | Module        | What it is |
 |---------------|------------|
+| `api`         | The [extension](#extensions) API: the interfaces an extension implements. JDK-only, and never relocated in the shaded jar. |
 | `core`        | Swing introspection & driving logic (window list, component tree, `paint()` screenshots, EDT-safe interactions/diagnostics, component addressing). No MCP dependency. |
 | `agent`       | The `-javaagent` bootstrap, dynamic-attach CLI, MCP server, and embedded Jetty, built as a shaded jar with every third-party package relocated. The only published artifact. |
 | `demo-java`, `demo-kotlin` | Small runnable Swing apps used as test beds (the Kotlin one shows Kotlin-authored UIs need nothing special). |
+| `demo-extension` | A sample extension for the demo app (a describer for its custom `StatusIndicator` and a `demo_status` tool), also the fixture the e2e suite loads. |
 | `e2e`         | End-to-end tests that fork a demo app with the shaded agent and drive every tool over MCP. |
 
 Building needs a JDK 17+ on `PATH`; the Gradle wrapper and the

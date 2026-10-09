@@ -60,7 +60,16 @@ final class ForkedApp implements AutoCloseable {
    * token} is non-null the agent is configured to require {@code Authorization: Bearer token}.
    */
   static ForkedApp launchWithAgent(String mainClass, String classpath, String token) {
-    String agentArgs = "port=0" + (token != null ? ",token=" + token : "");
+    return launchWithAgentArgs(mainClass, classpath, token != null ? "token=" + token : null);
+  }
+
+  /**
+   * Forks the given main class with the shaded agent attached at an ephemeral port plus {@code
+   * extraArgs} (further {@code key=value} agent arguments, comma-separated), or none when {@code
+   * null}.
+   */
+  static ForkedApp launchWithAgentArgs(String mainClass, String classpath, String extraArgs) {
+    String agentArgs = "port=0" + (extraArgs != null ? "," + extraArgs : "");
     List<String> command = new ArrayList<>();
     command.add(javaBin());
     command.add("-javaagent:" + agentJar() + "=" + agentArgs);
@@ -189,6 +198,10 @@ final class ForkedApp implements AutoCloseable {
 
   static String demoKotlinClasspath() {
     return requireProperty("swingmcp.demoKotlinClasspath");
+  }
+
+  static String demoExtensionJar() {
+    return requireProperty("swingmcp.demoExtensionJar");
   }
 
   private static String requireProperty(String key) {

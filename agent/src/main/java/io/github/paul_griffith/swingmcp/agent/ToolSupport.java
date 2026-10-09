@@ -303,7 +303,8 @@ final class ToolSupport {
     }
   }
 
-  private McpSchema.CallToolResult errorResult(String code, String message, String hint) {
+  /** A structured {@code {error, message, hint?}} result with {@code isError(true)}. */
+  McpSchema.CallToolResult errorResult(String code, String message, String hint) {
     Map<String, Object> m = new LinkedHashMap<>();
     m.put("error", code);
     m.put("message", message);

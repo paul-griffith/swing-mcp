@@ -15,6 +15,13 @@ val demoKotlinRuntime: Configuration by configurations.creating {
     isCanBeConsumed = false
     isCanBeResolved = true
 }
+// The sample extension's jar, which the extension e2e test hands to the agent via `extensions=`.
+// demo-extension has only a compileOnly dependency (the API), so this resolves to its jar alone.
+val demoExtensionJar: Configuration by configurations.creating {
+    isCanBeConsumed = false
+    isCanBeResolved = true
+    isTransitive = false
+}
 
 dependencies {
     // core for the shared vocabulary; MCP SDK for the *client* side of the tests. The client speaks
@@ -28,6 +35,7 @@ dependencies {
 
     demoJavaRuntime(project(":demo-java"))
     demoKotlinRuntime(project(":demo-kotlin"))
+    demoExtensionJar(project(":demo-extension"))
 }
 
 // The shaded agent jar the forked demo JVMs load via `-javaagent:` (and the attach CLI loads via
@@ -44,6 +52,7 @@ tasks.withType<Test>().configureEach {
     // The forked demo JVMs need the shaded agent jar and the demos' runtime classpaths.
     dependsOn(agentShadowJar)
     inputs.files(demoJavaRuntime, demoKotlinRuntime).withPropertyName("demoRuntimeClasspaths")
+    inputs.files(demoExtensionJar).withPropertyName("demoExtensionJar")
 
     systemProperty("java.awt.headless", headless)
 
@@ -53,6 +62,7 @@ tasks.withType<Test>().configureEach {
         systemProperty("swingmcp.agentJar", agentShadowJar.get().archiveFile.get().asFile.absolutePath)
         systemProperty("swingmcp.demoJavaClasspath", demoJavaRuntime.asPath)
         systemProperty("swingmcp.demoKotlinClasspath", demoKotlinRuntime.asPath)
+        systemProperty("swingmcp.demoExtensionJar", demoExtensionJar.singleFile.absolutePath)
         systemProperty("swingmcp.projectVersion", project.version.toString())
     }
 }

@@ -14,9 +14,11 @@ dependencyResolutionManagement {
 rootProject.name = "swing-mcp"
 
 include(
+    "api",
     "core",
     "agent",
     "demo-java",
     "demo-kotlin",
+    "demo-extension",
     "e2e",
 )

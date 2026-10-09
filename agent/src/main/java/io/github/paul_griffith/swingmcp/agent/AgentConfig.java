@@ -1,6 +1,10 @@
 package io.github.paul_griffith.swingmcp.agent;
 
+import java.io.File;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
+import java.util.regex.Pattern;
 
 /**
  * Parsed {@code -javaagent} argument string.
@@ -16,6 +20,10 @@ import java.util.Locale;
  *       Authorization: Bearer <token>}. Absent/blank means no auth. Because the argument string is
  *       split on commas, <b>a token cannot contain a comma</b> (any character after a comma starts
  *       a new {@code key=value} pair); all other characters are fine.
+ *   <li>{@code extensions} — extension jars to load (see {@link Extensions}): a list of jar files
+ *       and/or directories (every {@code *.jar} directly inside, in name order), separated by the
+ *       platform path separator ({@code :} on macOS/Linux, {@code ;} on Windows). Like the token, a
+ *       path cannot contain a comma.
  * </ul>
  *
  * <p>The server always binds {@value McpHttpServer#BIND_HOST}; there is deliberately no way to
@@ -26,15 +34,25 @@ import java.util.Locale;
  *
  * @param port the TCP port to bind (0–65535)
  * @param token the bearer token to require, or {@code null} for no authentication
+ * @param extensions the extension jar/directory paths, in the order given (never {@code null})
  */
-public record AgentConfig(int port, String token) {
+public record AgentConfig(int port, String token, List<String> extensions) {
 
   /** Default port when {@code port=} is not supplied. */
   public static final int DEFAULT_PORT = 8765;
 
-  /** The default configuration: {@link #DEFAULT_PORT}, no token. */
+  public AgentConfig {
+    extensions = extensions == null ? List.of() : List.copyOf(extensions);
+  }
+
+  /** A configuration with no extension paths. */
+  public AgentConfig(int port, String token) {
+    this(port, token, List.of());
+  }
+
+  /** The default configuration: {@link #DEFAULT_PORT}, no token, no extensions. */
   public static AgentConfig defaults() {
-    return new AgentConfig(DEFAULT_PORT, null);
+    return new AgentConfig(DEFAULT_PORT, null, List.of());
   }
 
   /**
@@ -47,6 +65,7 @@ public record AgentConfig(int port, String token) {
   public static AgentConfig parse(String agentArgs) {
     int port = DEFAULT_PORT;
     String token = null;
+    List<String> extensions = new ArrayList<>();
 
     if (agentArgs != null && !agentArgs.isBlank()) {
       for (String pair : agentArgs.split(",")) {
@@ -59,11 +78,23 @@ public record AgentConfig(int port, String token) {
         switch (key) {
           case "port" -> port = parsePort(value);
           case "token" -> token = value.isBlank() ? null : value;
+          case "extensions" -> extensions.addAll(parsePaths(value));
           default -> SwingMcpAgent.log("ignoring unknown agent argument '" + key + "'");
         }
       }
     }
-    return new AgentConfig(port, token);
+    return new AgentConfig(port, token, extensions);
+  }
+
+  /** A {@link File#pathSeparator}-separated path list; blank entries are dropped. */
+  private static List<String> parsePaths(String value) {
+    List<String> paths = new ArrayList<>();
+    for (String path : value.split(Pattern.quote(File.pathSeparator))) {
+      if (!path.isBlank()) {
+        paths.add(path.trim());
+      }
+    }
+    return paths;
   }
 
   private static int parsePort(String value) {
