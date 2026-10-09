@@ -59,6 +59,11 @@ public record ComponentTreeSnapshot(
   public enum TextSource {
     /** No display text was found. */
     NONE,
+    /**
+     * An extension's {@link io.github.paul_griffith.swingmcp.api.ComponentDescriber}, which is
+     * consulted before the built-in sources below.
+     */
+    EXTENSION,
     /** {@link javax.swing.AbstractButton#getText()} (buttons, toggles, menu items, menus). */
     BUTTON_TEXT,
     /** {@link javax.swing.JLabel#getText()}. */

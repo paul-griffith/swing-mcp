@@ -1412,10 +1412,15 @@ public final class Introspection {
   }
 
   /**
-   * Best-effort display text: first non-blank of
-   * button/label/text-component/border/tooltip/accessible name.
+   * Best-effort display text: first non-blank of an extension describer's text (see {@link
+   * ComponentDescribers}), then button/label/text-component/border/tooltip/accessible name.
    */
   private static TextResult displayText(Component component) {
+    // Extension describers know their own components better than the generic rules do.
+    String described = ComponentDescribers.displayText(component);
+    if (described != null) {
+      return TextResult.of(described, ComponentTreeSnapshot.TextSource.EXTENSION);
+    }
     if (component instanceof AbstractButton button) {
       String t = blankToNull(button.getText());
       if (t != null) {

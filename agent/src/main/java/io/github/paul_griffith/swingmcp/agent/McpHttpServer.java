@@ -1,5 +1,7 @@
 package io.github.paul_griffith.swingmcp.agent;
 
+import io.github.paul_griffith.swingmcp.api.ComponentDescriber;
+import io.github.paul_griffith.swingmcp.core.ComponentDescribers;
 import io.modelcontextprotocol.json.McpJsonMapper;
 import io.modelcontextprotocol.json.jackson3.JacksonMcpJsonMapper;
 import io.modelcontextprotocol.server.McpServer;
@@ -8,8 +10,11 @@ import io.modelcontextprotocol.server.McpSyncServer;
 import io.modelcontextprotocol.server.transport.HttpServletStreamableServerTransportProvider;
 import io.modelcontextprotocol.spec.McpSchema;
 import jakarta.servlet.DispatcherType;
+import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.eclipse.jetty.ee10.servlet.FilterHolder;
 import org.eclipse.jetty.ee10.servlet.ServletContextHandler;
@@ -23,8 +28,8 @@ import tools.jackson.databind.json.JsonMapper;
  * The embedded MCP-over-HTTP server: an {@link Server Jetty} bound to a loopback address serving
  * the MCP SDK's {@link HttpServletStreamableServerTransportProvider Streamable HTTP transport} at
  * {@code /mcp}, guarded by {@link LoopbackSecurityFilter}, with the full {@link SwingTools} surface
- * (introspection, interaction, and diagnostic tools) and a set of client {@code instructions}
- * registered.
+ * (introspection, interaction, and diagnostic tools), any tools loaded {@link Extensions}
+ * contribute, and a set of client {@code instructions} registered.
  *
  * <p>All Jetty worker threads are daemon threads, so a running server never keeps the host JVM
  * alive after the application exits.
@@ -97,6 +102,44 @@ final class McpHttpServer {
       component_not_found → re-locate the target with find_components).
       """;
 
+  /**
+   * The server {@code instructions}: the base text plus, when extensions are loaded, a line naming
+   * them and their tools.
+   */
+  static String instructions(List<ExtensionSummary> extensions) {
+    StringBuilder text = new StringBuilder(INSTRUCTIONS);
+    if (!extensions.isEmpty()) {
+      List<String> parts = new ArrayList<>(extensions.size());
+      for (ExtensionSummary e : extensions) {
+        List<String> what = new ArrayList<>(2);
+        if (!e.tools().isEmpty()) {
+          what.add("tools: " + String.join(", ", e.tools()));
+        }
+        if (e.describers() > 0) {
+          what.add("describes custom components");
+        }
+        parts.add(
+            "`" + e.name() + "`" + (what.isEmpty() ? "" : " (" + String.join("; ", what) + ")"));
+      }
+      text.append("- Extensions loaded: ")
+          .append(String.join(", ", parts))
+          .append(
+              ". Extension tools take the same component ids and return the same structured"
+                  + " errors as the built-in tools, and the text extensions supply for custom"
+                  + " components appears as `text` in tree/find results like any other.\n");
+    }
+    return text.toString();
+  }
+
+  /**
+   * What the instructions and the startup log say about one loaded extension.
+   *
+   * @param name the extension's name
+   * @param tools the names of its tools that were accepted
+   * @param describers how many describers it registered
+   */
+  record ExtensionSummary(String name, List<String> tools, int describers) {}
+
   private final Server jetty;
   private final McpSyncServer mcpServer;
   private final int port;
@@ -115,6 +158,10 @@ final class McpHttpServer {
    *     host application is never disrupted)
    */
   static McpHttpServer start(AgentConfig config) throws Exception {
+    // Extensions load before the tool surface is built; a broken one is logged and skipped.
+    Extensions.Loaded extensions =
+        Extensions.load(config.extensions(), SwingMcpAgent.class.getClassLoader(), version());
+
     JsonMapper jsonMapper = JsonMapper.builder().build();
     McpJsonMapper mcpJson = new JacksonMcpJsonMapper(jsonMapper);
 
@@ -125,12 +172,22 @@ final class McpHttpServer {
             .build();
 
     SwingTools tools = new SwingTools(jsonMapper);
-    List<McpServerFeatures.SyncToolSpecification> toolSpecs = tools.specifications();
+    List<McpServerFeatures.SyncToolSpecification> toolSpecs =
+        new ArrayList<>(tools.specifications());
+    Set<String> builtInNames = new LinkedHashSet<>();
+    for (McpServerFeatures.SyncToolSpecification spec : toolSpecs) {
+      builtInNames.add(spec.tool().name());
+    }
+    ExtensionTools.Built extensionTools =
+        new ExtensionTools(tools.support()).build(extensions.extensions(), builtInNames);
+    toolSpecs.addAll(extensionTools.specifications());
+    List<ExtensionSummary> summaries = installExtensions(extensions, extensionTools);
+
     McpSyncServer mcpServer =
         McpServer.sync(transport)
             .serverInfo("swing-mcp", version())
             .capabilities(McpSchema.ServerCapabilities.builder().tools(true).build())
-            .instructions(INSTRUCTIONS)
+            .instructions(instructions(summaries))
             .tools(toolSpecs.toArray(new McpServerFeatures.SyncToolSpecification[0]))
             .build();
 
@@ -194,6 +251,45 @@ final class McpHttpServer {
     } catch (Exception ignored) {
       // best-effort shutdown
     }
+  }
+
+  /**
+   * Installs the loaded extensions' describers into core, logs what loaded and every problem, and
+   * returns the per-extension summaries for the instructions.
+   */
+  private static List<ExtensionSummary> installExtensions(
+      Extensions.Loaded loaded, ExtensionTools.Built tools) {
+    ComponentDescribers.setFailureReporter(SwingMcpAgent::log);
+    List<ComponentDescribers.Registration> describers = new ArrayList<>();
+    List<ExtensionSummary> summaries = new ArrayList<>();
+    for (Extensions.Extension extension : loaded.extensions()) {
+      for (ComponentDescriber describer : extension.describers()) {
+        describers.add(new ComponentDescribers.Registration(extension.name(), describer));
+      }
+      List<String> toolNames =
+          tools.toolNamesByExtension().getOrDefault(extension.name(), List.of());
+      summaries.add(
+          new ExtensionSummary(extension.name(), toolNames, extension.describers().size()));
+      SwingMcpAgent.log(
+          "extension '"
+              + extension.name()
+              + "' loaded from "
+              + extension.source()
+              + ": "
+              + extension.describers().size()
+              + (extension.describers().size() == 1 ? " describer, " : " describers, ")
+              + toolNames.size()
+              + (toolNames.size() == 1 ? " tool" : " tools")
+              + (toolNames.isEmpty() ? "" : " " + toolNames));
+    }
+    ComponentDescribers.install(describers);
+    for (String problem : loaded.problems()) {
+      SwingMcpAgent.log("extension problem: " + problem);
+    }
+    for (String problem : tools.problems()) {
+      SwingMcpAgent.log("extension problem: " + problem);
+    }
+    return List.copyOf(summaries);
   }
 
   /** The agent version from the jar manifest ({@code Implementation-Version}), or {@code "dev"}. */

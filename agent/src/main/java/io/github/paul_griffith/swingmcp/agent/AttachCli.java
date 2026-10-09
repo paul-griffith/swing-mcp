@@ -5,6 +5,7 @@ import com.sun.tools.attach.AgentLoadException;
 import com.sun.tools.attach.AttachNotSupportedException;
 import com.sun.tools.attach.VirtualMachine;
 import com.sun.tools.attach.VirtualMachineDescriptor;
+import java.io.File;
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.nio.file.Files;
@@ -84,6 +85,8 @@ public final class AttachCli {
     System.out.println("Agent args (comma-separated key=value, all optional):");
     System.out.println("  port=<n>   TCP port (default 8765; 0 = ephemeral)");
     System.out.println("  token=<t>  require Authorization: Bearer <t>");
+    System.out.println(
+        "  extensions=<paths>  extension jars/directories, separated by " + File.pathSeparator);
     System.out.println();
 
     List<VirtualMachineDescriptor> vms;

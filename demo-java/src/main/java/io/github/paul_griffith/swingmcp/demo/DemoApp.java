@@ -75,6 +75,11 @@ public final class DemoApp {
     north.add(buildFormPanel());
     north.add(Box.createVerticalStrut(8));
     north.add(buildFilterBar());
+    north.add(Box.createVerticalStrut(8));
+    // A custom-painted component with no text of its own: the test bed for extension describers.
+    StatusIndicator statusIndicator = new StatusIndicator();
+    statusIndicator.setName("statusIndicator");
+    north.add(statusIndicator);
 
     JPanel content = new JPanel(new BorderLayout(12, 12));
     content.setName("contentPanel");
